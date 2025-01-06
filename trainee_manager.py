@@ -9,6 +9,7 @@ from screenshot_manager import ScreenshotManager
 from utils import load_config, save_config
 from docx import Document
 import time
+import uuid
 
 DEFAULT_SCREENSHOT_FOLDER = os.path.join(os.path.expanduser("~"), "Pictures", "Screenshots")
 
@@ -33,7 +34,7 @@ class TraineeManagerApp(tk.Tk):
         self.training_mode_active = False
         self.current_training_folder = None
         self.screenshot_manager = None
-
+        self.current_training_id = None
         self.screenshot_folder = DEFAULT_SCREENSHOT_FOLDER
         os.makedirs(self.screenshot_folder, exist_ok=True)
 
@@ -75,6 +76,8 @@ class TraineeManagerApp(tk.Tk):
         if not training_name:
             return
 
+        self.current_training_id = str(uuid.uuid4())
+
         self.current_training_folder = os.path.join(self.trainee_folder, selected_trainee, training_name)
         os.makedirs(self.current_training_folder, exist_ok=True)
 
@@ -82,13 +85,16 @@ class TraineeManagerApp(tk.Tk):
         self.training_mode_label.config(text="Trainingsmodus aktiv", fg="green")
         self.stop_training_button.config(state=tk.NORMAL)
         #self.create_and_open_training_doc(selected_trainee, training_name)
+        self.manage_screenshot_manager()
+        self.start_timer()
 
     def stop_training_mode(self):
         self.training_mode_active = False
         self.current_training_folder = None
         self.training_mode_label.config(text="Trainingsmodus nicht aktiv", fg="red")
         self.stop_training_button.config(state=tk.DISABLED)
-    
+        self.stop_timer()
+
     def create_and_open_training_doc(self, trainee_folder_name, training_name):
         template_path = os.path.join("templates", "training_template.docx")
         if not os.path.exists(template_path):
@@ -136,7 +142,11 @@ class TraineeManagerApp(tk.Tk):
         if not self.screenshot_manager:
             manager_window = tk.Toplevel(self)
             self.screenshot_manager = ScreenshotManager(
-                manager_window, self.current_training_folder, self.on_manager_close
+                root=manager_window,
+                base_folder=self.current_training_folder,
+                training_id=self.current_training_id,  
+                api_base_url="http://localhost:3000",
+                on_close_callback=self.on_manager_close
             )
         else:
             self.screenshot_manager.refresh()
@@ -144,6 +154,25 @@ class TraineeManagerApp(tk.Tk):
     def on_manager_close(self):
         self.screenshot_manager = None
 
+    # ------------------------------
+    # Timer
+    # ------------------------------
+    def start_timer(self):
+        self.training_start_time = time.time()
+        print("Stoppuhr gestartet.")
+
+    def stop_timer(self):
+        if not hasattr(self, "training_start_time"):
+            print("Die Stoppuhr wurde nicht gestartet.")
+            return
+
+        duration = time.time() - self.training_start_time
+        hours, remainder = divmod(duration, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        duration_str = f"{int(hours)}h {int(minutes)}m {int(seconds)}s"
+
+        messagebox.showinfo("Trainingsdauer", f"Das Training dauerte: {duration_str}")
+        del self.training_start_time
     # ------------------------------
     # Trainees
     # ------------------------------
